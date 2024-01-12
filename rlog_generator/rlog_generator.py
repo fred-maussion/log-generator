@@ -22,7 +22,6 @@ limitations under the License.
 import glob
 import logging
 import os
-import random
 import time
 from elasticsearch import Elasticsearch
 import yaml
@@ -148,7 +147,7 @@ def log_generator(pattern_conf):
 
         for i in range_func(nr_logs, **range_kvargs):
             start = time.time()
-            template = random.choice(pattern_conf["template"])
+            template = utils.faker_random_value(pattern_conf["template"])
             log_str = utils.get_template_log(template, fields)
 
             if stdout:
@@ -162,7 +161,6 @@ def log_generator(pattern_conf):
 
             if log_output:
                 with open(path, "a") as f:
-                    template = random.choice(pattern_conf["template"])
                     log_str = utils.get_template_log(template, fields)
                     f.write(log_str + "\n")
 
@@ -185,7 +183,7 @@ def log_generator(pattern_conf):
     return nr_logs
 
 
-def core(path_patterns, max_concur_req, progress_bar=False):
+def core(path_patterns, max_concur_req, seed, progress_bar=False):
     """This function runs the core of tool.
     All threads are generated here. A thread foreach log file.
 
@@ -193,6 +191,7 @@ def core(path_patterns, max_concur_req, progress_bar=False):
         path_patterns {str} -- path of log patterns
         max_concur_req {int} -- max concurrent log generator
         progress_bar {bool} -- enable/disable progress bar
+        seed {int} - force a random seed
 
     Keyword Arguments:
         progress_bar {bool} -- enable/disable progress bar (default: False)
@@ -223,6 +222,10 @@ def core(path_patterns, max_concur_req, progress_bar=False):
     concur_req = int(min(MAX_CONCUR_REQ, len(patterns), max_concur_req))
 
     log.info(f"Activate {concur_req} parallel threads")
+
+    if seed is not None:
+        utils.faker_seed(seed)
+        log.info(f"Pseudorandom seed with value {seed} used")
 
     with futures.ThreadPoolExecutor(max_workers=concur_req) as executor:
         res = executor.map(log_generator, patterns.values())

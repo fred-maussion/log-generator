@@ -21,7 +21,6 @@ limitations under the License.
 
 import datetime
 import logging
-import random
 import sys
 import yaml
 import os
@@ -41,6 +40,8 @@ def load_config(yaml_file):
             if 'locale' in config and config['locale']:
                 global fake
                 fake = Faker(config['locale'])
+            else:
+                fake = Faker()
             return config
     except FileNotFoundError:
         log.error(f"File {yaml_file} not found.")
@@ -141,7 +142,7 @@ def get_random_value(field_value):
     if isinstance(field_value, str):
         return exec_function_str(field_value)
     elif isinstance(field_value, list):
-        return random.choice(field_value)
+        return fake.random_element(elements=tuple(field_value))
     else:
         raise ValueError('field value can be a string or a list')
 
@@ -179,3 +180,14 @@ def custom_log(level="WARNING", name=None):  # pragma: no cover
     ch.setFormatter(formatter)
     log.addHandler(ch)
     return log
+
+def faker_seed(seed):
+    """ Initializes Faker with a specific seed to ensure repeatable datasets.
+    Will return inconsistent results if you have more than one log template
+    """
+    Faker.seed(seed)
+
+def faker_random_value(list):
+    """ Picks a random element from a list.
+    """
+    return fake.random_element(elements=tuple(list))

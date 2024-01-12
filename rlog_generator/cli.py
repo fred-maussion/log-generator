@@ -61,8 +61,13 @@ __version__ = runpy.run_path(
     default=False,
     show_default=True,
     help="Enable/Disable progress bar")
+@click.option(
+    '--seed', '-s',
+    show_default=True,
+    type=int,
+    help="Force a specific seed for repetable pseudorandom generation")
 
-def main(patterns, max_concur_req, log_level, progress_bar):
+def main(patterns, max_concur_req, log_level, progress_bar, seed):
     """Random Logs Generator Tool."""
 
     custom_log(level=log_level)
@@ -71,7 +76,8 @@ def main(patterns, max_concur_req, log_level, progress_bar):
         total_logs = rlog_generator.core(
             path_patterns=patterns,
             max_concur_req=max_concur_req,
-            progress_bar=progress_bar)
+            progress_bar=progress_bar,
+            seed=seed)
         print(f"\nGenerated {total_logs} logs")
     except KeyboardInterrupt:  # pragma: no cover
         sys.exit(0)

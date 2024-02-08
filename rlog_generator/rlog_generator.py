@@ -70,6 +70,8 @@ def log_generator(pattern_conf):
     log_output = pattern_conf["log_output"]
     elastic_output = pattern_conf["elastic"]
     path = pattern_conf["path"]
+    locale = pattern_conf.get("locale", False)
+    seed = pattern_conf["seed"]
     log_path = os.path.dirname(path)
     log.debug(f"[{name}] - Generating logging for {name}")
     log.debug(f"[{name}] - Generating logging in {path}")
@@ -95,6 +97,12 @@ def log_generator(pattern_conf):
     log.debug(f"[{name}] - Ideal sleep time between logs is {sleep_time}")
 
     progress_bar = pattern_conf.get("progress_bar", False)
+    # Set locale for Faker based on the configuration
+    fake = utils.faker_localization(locale)
+
+    if seed is not None:
+        utils.faker_seed(fake, seed)
+        log.info(f"Pseudorandom seed with value {seed} used")
 
     if elastic_output:
         elastic_config = load_elastic_config()
@@ -147,8 +155,8 @@ def log_generator(pattern_conf):
 
         for i in range_func(nr_logs, **range_kvargs):
             start = time.time()
-            template = utils.faker_random_value(pattern_conf["template"])
-            log_str = utils.get_template_log(template, fields)
+            template = utils.faker_random_value(fake, pattern_conf["template"])
+            log_str = utils.get_template_log(template, fields, fake)
 
             if stdout:
                 print(log_str)  # Output to stdout
@@ -161,7 +169,7 @@ def log_generator(pattern_conf):
 
             if log_output:
                 with open(path, "a") as f:
-                    log_str = utils.get_template_log(template, fields)
+                    log_str = utils.get_template_log(template, fields, fake)
                     f.write(log_str + "\n")
 
                 elapsed_first = time.time() - start
@@ -199,7 +207,7 @@ def core(path_patterns, max_concur_req, seed, progress_bar=False):
 
     # Load all configuration patterns
     patterns = {
-        os.path.basename(i): utils.load_config(i) for i in glob.iglob(
+        os.path.basename(i): utils.load_config(i, seed) for i in glob.iglob(
             os.path.join(path_patterns, "*.yml"))}
     # filter patterns not enabled
     patterns = {k: v for k, v in patterns.items() if v.get("enabled", False)}
@@ -222,10 +230,6 @@ def core(path_patterns, max_concur_req, seed, progress_bar=False):
     concur_req = int(min(MAX_CONCUR_REQ, len(patterns), max_concur_req))
 
     log.info(f"Activate {concur_req} parallel threads")
-
-    if seed is not None:
-        utils.faker_seed(seed)
-        log.info(f"Pseudorandom seed with value {seed} used")
 
     with futures.ThreadPoolExecutor(max_workers=concur_req) as executor:
         res = executor.map(log_generator, patterns.values())

@@ -21,7 +21,6 @@ limitations under the License.
 
 import datetime
 import logging
-import random
 import sys
 import yaml
 import os
@@ -31,16 +30,13 @@ from faker import Faker
 
 log = logging.getLogger(__name__)
 
-def load_config(yaml_file):
+def load_config(yaml_file, seed):
     """Return a Python object given a YAML file."""
     try:
         with open(yaml_file, 'r') as f:
             log.debug(f"Loading file {yaml_file}")
             config = yaml.load(f, Loader=yaml.FullLoader)
-            # Set locale for Faker based on the configuration
-            if 'locale' in config and config['locale']:
-                global fake
-                fake = Faker(config['locale'])
+            config["seed"] = seed
             return config
     except FileNotFoundError:
         log.error(f"File {yaml_file} not found.")
@@ -74,7 +70,7 @@ def timestamp():
     return round(fake.unix_time(start_datetime=datetime.timedelta(-30)))
 
 
-def get_function(function_str, module=sys.modules[__name__]):
+def get_function(function_str, fake, module=sys.modules[__name__]):
     """Return the function from its string name as func_name
     Example: with the name 'func_randint'
     you will get the function name 'randint'
@@ -106,7 +102,7 @@ def get_function(function_str, module=sys.modules[__name__]):
     raise ValueError(f"Function {function_str} not found in any provider modules.")
 
 
-def exec_function_str(function_str):
+def exec_function_str(function_str, fake):
     """Return the value of all string function with/without
     parameters.
     Example: a complete string 'func_randint 1 10' runs the function
@@ -119,14 +115,14 @@ def exec_function_str(function_str):
         any -- value of string function
     """
     tokens = function_str.split()
-    func = get_function(tokens[0])
+    func = get_function(tokens[0], fake)
     if len(tokens) == 1:
         return func()
     else:
         return func(*tokens[1:])
 
 
-def get_random_value(field_value):
+def get_random_value(field_value, fake):
     """Return the random value of field value in pattern configuration
 
     Arguments:
@@ -139,14 +135,14 @@ def get_random_value(field_value):
         any -- random value
     """
     if isinstance(field_value, str):
-        return exec_function_str(field_value)
+        return exec_function_str(field_value, fake)
     elif isinstance(field_value, list):
-        return random.choice(field_value)
+        return fake.random_element(elements=tuple(field_value))
     else:
         raise ValueError('field value can be a string or a list')
 
 
-def get_template_log(template, fields):
+def get_template_log(template, fields, fake):
     """Return a random log from template string in Python formatting string
     (https://docs.python.org/3/library/string.html#custom-string-formatting)
 
@@ -157,7 +153,7 @@ def get_template_log(template, fields):
     Returns:
         str -- random log generated from template
     """
-    values = {k: get_random_value(v) for k, v in fields.items()}
+    values = {k: get_random_value(v, fake) for k, v in fields.items()}
     now = datetime.datetime.now()
     return template.format(now, **values)
 
@@ -179,3 +175,19 @@ def custom_log(level="WARNING", name=None):  # pragma: no cover
     ch.setFormatter(formatter)
     log.addHandler(ch)
     return log
+
+def faker_localization(locale):
+    if locale:
+        return Faker(locale)
+    else:
+        return Faker()
+
+def faker_seed(fake, seed):
+    """ Initializes Faker with a specific seed to ensure repeatable datasets.
+    """
+    fake.seed_instance(seed)
+
+def faker_random_value(fake, list):
+    """ Picks a random element from a list.
+    """
+    return fake.random_element(elements=tuple(list))

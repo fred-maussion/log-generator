@@ -22,7 +22,6 @@ limitations under the License.
 import glob
 import logging
 import os
-import random
 import time
 from elasticsearch import Elasticsearch
 import yaml
@@ -71,6 +70,8 @@ def log_generator(pattern_conf):
     log_output = pattern_conf["log_output"]
     elastic_output = pattern_conf["elastic"]
     path = pattern_conf["path"]
+    locale = pattern_conf.get("locale", False)
+    seed = pattern_conf["seed"]
     log_path = os.path.dirname(path)
     log.debug(f"[{name}] - Generating logging for {name}")
     log.debug(f"[{name}] - Generating logging in {path}")
@@ -96,6 +97,12 @@ def log_generator(pattern_conf):
     log.debug(f"[{name}] - Ideal sleep time between logs is {sleep_time}")
 
     progress_bar = pattern_conf.get("progress_bar", False)
+    # Set locale for Faker based on the configuration
+    fake = utils.faker_localization(locale)
+
+    if seed is not None:
+        utils.faker_seed(fake, seed)
+        log.info(f"Pseudorandom seed with value {seed} used")
 
     if elastic_output:
         elastic_config = load_elastic_config()
@@ -148,8 +155,8 @@ def log_generator(pattern_conf):
 
         for i in range_func(nr_logs, **range_kvargs):
             start = time.time()
-            template = random.choice(pattern_conf["template"])
-            log_str = utils.get_template_log(template, fields)
+            template = utils.faker_random_value(fake, pattern_conf["template"])
+            log_str = utils.get_template_log(template, fields, fake)
 
             if stdout:
                 print(log_str)  # Output to stdout
@@ -162,8 +169,7 @@ def log_generator(pattern_conf):
 
             if log_output:
                 with open(path, "a") as f:
-                    template = random.choice(pattern_conf["template"])
-                    log_str = utils.get_template_log(template, fields)
+                    log_str = utils.get_template_log(template, fields, fake)
                     f.write(log_str + "\n")
 
                 elapsed_first = time.time() - start
@@ -185,7 +191,7 @@ def log_generator(pattern_conf):
     return nr_logs
 
 
-def core(path_patterns, max_concur_req, progress_bar=False):
+def core(path_patterns, max_concur_req, seed, progress_bar=False):
     """This function runs the core of tool.
     All threads are generated here. A thread foreach log file.
 
@@ -193,6 +199,7 @@ def core(path_patterns, max_concur_req, progress_bar=False):
         path_patterns {str} -- path of log patterns
         max_concur_req {int} -- max concurrent log generator
         progress_bar {bool} -- enable/disable progress bar
+        seed {int} - force a random seed
 
     Keyword Arguments:
         progress_bar {bool} -- enable/disable progress bar (default: False)
@@ -200,7 +207,7 @@ def core(path_patterns, max_concur_req, progress_bar=False):
 
     # Load all configuration patterns
     patterns = {
-        os.path.basename(i): utils.load_config(i) for i in glob.iglob(
+        os.path.basename(i): utils.load_config(i, seed) for i in glob.iglob(
             os.path.join(path_patterns, "*.yml"))}
     # filter patterns not enabled
     patterns = {k: v for k, v in patterns.items() if v.get("enabled", False)}

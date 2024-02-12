@@ -1,5 +1,9 @@
 # History
 
+## 0.4.0
+
+- Added --seed / -s option to allow for repeatable datasets
+
 ## 0.3.1 (2024-01-12)
 
 - Added rand_int function
